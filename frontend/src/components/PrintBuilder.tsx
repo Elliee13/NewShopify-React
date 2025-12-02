@@ -6,6 +6,7 @@ type Variant = {
   currency: string;
   color?: string | null;
   size?: string | null;
+  image?: string | null;
 };
 
 type Product = {
@@ -61,6 +62,7 @@ export const PrintBuilder: React.FC = () => {
       artScale: number; // 1.0 = 100%
       productsPageInfo: PageInfo | null;
       productsQuery: string | null;
+      activeProductImage: string | null; // drives mockup background for selected variant
     } = {
       products: [],
       artworkFile: null,
@@ -74,6 +76,7 @@ export const PrintBuilder: React.FC = () => {
       artScale: 1,
       productsPageInfo: null,
       productsQuery: null,
+      activeProductImage: null,
     };
 
     const el = {
@@ -195,7 +198,7 @@ export const PrintBuilder: React.FC = () => {
     const renderMockup = () => {
       if (
         !state.selectedProduct ||
-        !state.selectedProduct.image ||
+        !state.activeProductImage ||
         !state.artworkPreviewUrl ||
         !el.mockupCanvas
       ) {
@@ -208,7 +211,7 @@ export const PrintBuilder: React.FC = () => {
 
       const garmentImg = new Image();
       garmentImg.crossOrigin = 'anonymous';
-      garmentImg.src = state.selectedProduct.image;
+      garmentImg.src = state.activeProductImage;
 
       const artImg = new Image();
       artImg.crossOrigin = 'anonymous';
@@ -387,6 +390,11 @@ export const PrintBuilder: React.FC = () => {
       state.lastVariant = variant || null;
 
       if (!variant) {
+        state.activeProductImage = state.selectedProduct?.image || null;
+        el.configProductImage.src = state.activeProductImage || '';
+        if (state.artworkPreviewUrl) {
+          setTimeout(renderMockup, 50);
+        }
         el.configPrice.textContent = 'Variant not available for this combination.';
         el.configAddBtn.disabled = true;
         el.debugVariantId.textContent = 'None';
@@ -405,6 +413,14 @@ export const PrintBuilder: React.FC = () => {
       el.debugSelection.textContent = `${state.selectedColor || '...'} / ${
         state.selectedSize || '...'
       } - Qty ${state.quantity}`;
+
+      // prefer variant-specific image if provided, fall back to product feature image
+      const variantImage = variant.image || state.selectedProduct.image || null;
+      state.activeProductImage = variantImage;
+      el.configProductImage.src = variantImage || '';
+      if (state.artworkPreviewUrl) {
+        setTimeout(renderMockup, 50);
+      }
     };
 
     const selectProduct = (productId: string) => {
@@ -414,6 +430,8 @@ export const PrintBuilder: React.FC = () => {
       const sameProduct = state.selectedProduct && state.selectedProduct.id === product.id;
 
       state.selectedProduct = product;
+      // default mockup image to the product-level photo until a variant overrides it
+      state.activeProductImage = product.image || null;
 
       const colors = Array.from(
         new Set(product.variants.map((v) => v.color).filter(Boolean))
@@ -434,7 +452,7 @@ export const PrintBuilder: React.FC = () => {
       el.configEmpty.classList.add('hidden');
       el.configContent.classList.remove('hidden');
 
-      el.configProductImage.src = product.image || '';
+      el.configProductImage.src = state.activeProductImage || '';
       el.configProductTitle.textContent = product.title;
       el.configProductDescription.textContent = product.description || '';
 

@@ -48,6 +48,10 @@ class ProductsController
                     amount
                     currencyCode
                   }
+                  image {
+                    url
+                    altText
+                  }
                   selectedOptions {
                     name
                     value
@@ -106,6 +110,8 @@ class ProductsController
                         'size'     => $size,
                         'price'    => $v['price']['amount'],
                         'currency' => $v['price']['currencyCode'],
+                        // optional variant-level image so the UI can swap based on color/size selection
+                        'image'    => $v['image']['url'] ?? null,
                     ];
                 }, $p['variants']['nodes'] ?? []),
             ];
