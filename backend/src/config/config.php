@@ -12,9 +12,9 @@ if (file_exists($root . '/.env')) {
 
 return [
     'shopify' => [
-        'domain'          => $_ENV['SHOPIFY_STORE_DOMAIN'] ?? '',
-        'storefrontToken' => $_ENV['SHOPIFY_STOREFRONT_TOKEN'] ?? '',
-        'apiVersion'      => $_ENV['SHOPIFY_API_VERSION'] ?? '2024-01',
+        'domain'          => $_ENV['base_url'] ?? '',
+        'storefrontToken' => $_ENV['storefront_access_token'] ?? '',
+        'apiVersion'      => $_ENV['api_version'] ?? '2024-01',
     ],
     'db' => [
         'host' => $_ENV['DB_HOST'] ?? '127.0.0.1',

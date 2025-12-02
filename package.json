@@ -1,12 +1,13 @@
 {
   "scripts": {
     "setup": "concurrently \"npm:setup:composer\" \"npm:setup:frontend\"",
-    "setup:composer": "composer install",
-    "setup:frontend": "cd public && npm install",
-    "tailwind:dev": "tailwindcss -i ./src/input.css -o ./public/index.css --watch",
-    "tailwind:build": "tailwindcss -i ./src/input.css -o ./public/index.css --minify",
-    "dev": "concurrently \"npm:tailwind:dev\" \"php -S 127.0.0.1:8000 -t public\" \"cd public && npm run dev\"",
-    "build:css": "npm run tailwind:build"
+    "setup:composer": "cd backend && composer install",
+    "setup:frontend": "cd frontend && npm install",
+    "dev": "concurrently \"npm:dev:backend\" \"npm:dev:frontend\"",
+    "dev:backend": "cd backend && php -S 127.0.0.1:8000 -t public",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "preview": "cd frontend && npm run preview"
   },
   "dependencies": {
     "@tailwindcss/cli": "^4.1.17",

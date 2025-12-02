@@ -17,9 +17,43 @@ class ProductsController
 
     public function index(): void
     {
+        // Allow callers to request additional pages/search results using Shopify's cursor pattern.
+        $limit = isset($_GET['limit']) ? (int) $_GET['limit'] : 20;
+        $limit = max(1, min(50, $limit)); // keep requests lightweight per Shopify guidance
+        $cursor = $_GET['cursor'] ?? null;
+        $search = $_GET['query'] ?? null;
+        if ($search !== null) {
+            $search = trim($search);
+            if ($search === '') {
+                $search = null;
+            } else {
+                // Shopify's search syntax is flexible but they recommend guarding user input to avoid
+                // wasteful queries (see https://shopify.dev/docs/api/usage/search-syntax). Keep queries short
+                // and restrict characters to prevent malformed expressions.
+                if (strlen($search) > 120) {
+                    Response::json([
+                        'error'   => 'invalid_query',
+                        'message' => 'Search text is too long.',
+                    ], 422);
+                }
+                if (!preg_match('/^[\\w\\s:\\-\'"]+$/u', $search)) {
+                    Response::json([
+                        'error'   => 'invalid_query',
+                        'message' => 'Search text contains unsupported characters.',
+                    ], 422);
+                }
+            }
+        }
+
         $query = <<<'GRAPHQL'
-        query GetProducts {
-          products(first: 20) {
+        query GetProducts($first: Int!, $after: String, $query: String) {
+          products(first: $first, after: $after, query: $query) {
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+              startCursor
+              endCursor
+            }
             nodes {
               id
               title
@@ -36,6 +70,10 @@ class ProductsController
                     amount
                     currencyCode
                   }
+                  image {
+                    url
+                    altText
+                  }
                   selectedOptions {
                     name
                     value
@@ -47,8 +85,26 @@ class ProductsController
         }
         GRAPHQL;
 
-        $data     = $this->shopify->query($query);
+        // Using variables keeps the query reusable and lets Shopify handle pagination via cursors.
+        $variables = [
+            'first' => $limit,
+            'after' => $cursor ?: null,
+            'query' => $search ?: null,
+        ];
+
+        try {
+            // Bubble up raw Shopify errors so the client can provide actionable feedback.
+            $data = $this->shopify->query($query, $variables);
+        } catch (\Throwable $e) {
+            Response::json([
+                'error'   => 'shopify_query_failed',
+                'message' => 'Unable to load products from Shopify.',
+                'details' => $e->getMessage(),
+            ], 502);
+        }
+
         $products = $data['products']['nodes'] ?? [];
+        $pageInfo = $data['products']['pageInfo'] ?? null;
 
         $result = array_map(function ($p) {
             return [
@@ -76,11 +132,18 @@ class ProductsController
                         'size'     => $size,
                         'price'    => $v['price']['amount'],
                         'currency' => $v['price']['currencyCode'],
+                        // optional variant-level image so the UI can swap based on color/size selection
+                        'image'    => $v['image']['url'] ?? null,
                     ];
                 }, $p['variants']['nodes'] ?? []),
             ];
         }, $products);
 
-        Response::json(['products' => $result]);
+        // Frontend consumes normalized products plus pageInfo to know when to fetch more.
+        Response::json([
+            'products' => $result,
+            'pageInfo' => $pageInfo,
+            'limit'    => $limit,
+        ]);
     }
 }
