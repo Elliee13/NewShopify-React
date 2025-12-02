@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+﻿import React, { useEffect } from 'react';
 
 type Variant = {
   id: string;
@@ -6,6 +6,7 @@ type Variant = {
   currency: string;
   color?: string | null;
   size?: string | null;
+  image?: string | null;
 };
 
 type Product = {
@@ -16,11 +17,26 @@ type Product = {
   variants: Variant[];
 };
 
+type PageInfo = {
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  startCursor?: string | null;
+  endCursor?: string | null;
+};
+
 type UploadResult = {
   success?: boolean;
   fileName?: string;
   storedFileName?: string;
   url?: string;
+};
+
+type ProductsResponse = {
+  products?: Product[];
+  pageInfo?: PageInfo | null;
+  error?: string;
+  message?: string;
+  details?: string;
 };
 
 // If VITE_API_BASE_URL is set (for production), use it; otherwise use same-origin
@@ -29,8 +45,7 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, ''
 const apiUrl = (endpoint: string) =>
   `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
-console.log('API_BASE_URL =', API_BASE_URL);
-console.log('Products URL =', apiUrl('/api/products'));
+const PRODUCTS_PAGE_SIZE = 20;
 
 export const PrintBuilder: React.FC = () => {
   useEffect(() => {
@@ -45,6 +60,9 @@ export const PrintBuilder: React.FC = () => {
       quantity: number;
       lastVariant: Variant | null;
       artScale: number; // 1.0 = 100%
+      productsPageInfo: PageInfo | null;
+      productsQuery: string | null;
+      activeProductImage: string | null; // drives mockup background for selected variant
     } = {
       products: [],
       artworkFile: null,
@@ -56,6 +74,9 @@ export const PrintBuilder: React.FC = () => {
       quantity: 1,
       lastVariant: null,
       artScale: 1,
+      productsPageInfo: null,
+      productsQuery: null,
+      activeProductImage: null,
     };
 
     const el = {
@@ -68,6 +89,7 @@ export const PrintBuilder: React.FC = () => {
       step2Circle: document.getElementById('step-2-circle'),
       products: document.getElementById('products'),
       productsStatus: document.getElementById('products-status'),
+      productsLoadMore: document.getElementById('products-load-more') as HTMLButtonElement | null,
       configEmpty: document.getElementById('config-empty'),
       configContent: document.getElementById('config-content'),
       configProductImage: document.getElementById('config-product-image') as HTMLImageElement | null,
@@ -95,6 +117,7 @@ export const PrintBuilder: React.FC = () => {
       !el.step2Circle ||
       !el.products ||
       !el.productsStatus ||
+      !el.productsLoadMore ||
       !el.configEmpty ||
       !el.configContent ||
       !el.configProductImage ||
@@ -175,7 +198,7 @@ export const PrintBuilder: React.FC = () => {
     const renderMockup = () => {
       if (
         !state.selectedProduct ||
-        !state.selectedProduct.image ||
+        !state.activeProductImage ||
         !state.artworkPreviewUrl ||
         !el.mockupCanvas
       ) {
@@ -188,7 +211,7 @@ export const PrintBuilder: React.FC = () => {
 
       const garmentImg = new Image();
       garmentImg.crossOrigin = 'anonymous';
-      garmentImg.src = state.selectedProduct.image;
+      garmentImg.src = state.activeProductImage;
 
       const artImg = new Image();
       artImg.crossOrigin = 'anonymous';
@@ -367,6 +390,11 @@ export const PrintBuilder: React.FC = () => {
       state.lastVariant = variant || null;
 
       if (!variant) {
+        state.activeProductImage = state.selectedProduct?.image || null;
+        el.configProductImage.src = state.activeProductImage || '';
+        if (state.artworkPreviewUrl) {
+          setTimeout(renderMockup, 50);
+        }
         el.configPrice.textContent = 'Variant not available for this combination.';
         el.configAddBtn.disabled = true;
         el.debugVariantId.textContent = 'None';
@@ -385,6 +413,14 @@ export const PrintBuilder: React.FC = () => {
       el.debugSelection.textContent = `${state.selectedColor || '...'} / ${
         state.selectedSize || '...'
       } - Qty ${state.quantity}`;
+
+      // prefer variant-specific image if provided, fall back to product feature image
+      const variantImage = variant.image || state.selectedProduct.image || null;
+      state.activeProductImage = variantImage;
+      el.configProductImage.src = variantImage || '';
+      if (state.artworkPreviewUrl) {
+        setTimeout(renderMockup, 50);
+      }
     };
 
     const selectProduct = (productId: string) => {
@@ -394,6 +430,8 @@ export const PrintBuilder: React.FC = () => {
       const sameProduct = state.selectedProduct && state.selectedProduct.id === product.id;
 
       state.selectedProduct = product;
+      // default mockup image to the product-level photo until a variant overrides it
+      state.activeProductImage = product.image || null;
 
       const colors = Array.from(
         new Set(product.variants.map((v) => v.color).filter(Boolean))
@@ -414,7 +452,7 @@ export const PrintBuilder: React.FC = () => {
       el.configEmpty.classList.add('hidden');
       el.configContent.classList.remove('hidden');
 
-      el.configProductImage.src = product.image || '';
+      el.configProductImage.src = state.activeProductImage || '';
       el.configProductTitle.textContent = product.title;
       el.configProductDescription.textContent = product.description || '';
 
@@ -474,63 +512,131 @@ export const PrintBuilder: React.FC = () => {
       updateVariantAndPrice();
     };
 
-    const loadProducts = async () => {
-      el.productsStatus.textContent = 'Loading products...';
+    const renderProductsList = () => {
+      el.products.innerHTML = '';
+
+      if (state.products.length === 0) {
+        el.productsStatus.textContent = 'No products available.';
+        return;
+      }
+
+      el.productsStatus.textContent = '';
+
+      state.products.forEach((p) => {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className =
+          'text-left rounded-lg border border-slate-200 bg-white p-2 shadow-sm flex items-center gap-2 hover:border-black/70 hover:shadow-md transition';
+        card.dataset.productId = p.id;
+
+        const firstVariant = p.variants[0];
+
+        card.innerHTML = `
+          <div class="w-14 h-14 rounded-md bg-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0">
+            ${
+              p.image
+                ? `<img src="${p.image}" alt="${p.title}" class="object-contain max-h-full max-w-full" />`
+                : `<span class="text-[10px] text-slate-400">No image</span>`
+            }
+          </div>
+          <div class="flex-1 min-w-0">
+            <h4 class="text-[11px] font-semibold text-slate-900 line-clamp-1">${p.title}</h4>
+            <p class="text-[10px] text-slate-500 line-clamp-1">${p.description || ''}</p>
+            <p class="text-[10px] text-slate-600">
+              From ${
+                firstVariant
+                  ? `${firstVariant.price} ${firstVariant.currency}`
+                  : '...'
+              }
+            </p>
+          </div>
+        `;
+
+        card.addEventListener('click', () => {
+          selectProduct(p.id);
+        });
+
+        el.products.appendChild(card);
+      });
+    };
+
+    const updateLoadMoreVisibility = () => {
+      const pageInfo = state.productsPageInfo;
+      if (pageInfo && pageInfo.hasNextPage && pageInfo.endCursor) {
+        el.productsLoadMore.classList.remove('hidden');
+        el.productsLoadMore.disabled = false;
+        el.productsLoadMore.textContent = 'Load more garments';
+      } else {
+        el.productsLoadMore.classList.add('hidden');
+      }
+    };
+
+    const loadProducts = async ({
+      cursor = null,
+      append = false,
+    }: { cursor?: string | null; append?: boolean } = {}) => {
+      if (append) {
+        el.productsLoadMore.disabled = true;
+        el.productsLoadMore.textContent = 'Loading more...';
+      } else {
+        el.productsStatus.textContent = 'Loading products...';
+      }
 
       try {
-        const res = await fetch(apiUrl('/api/products'));
-        const data = (await res.json()) as { products?: Product[] };
-
-        if (!data.products || data.products.length === 0) {
-          el.products.innerHTML = '';
-          el.productsStatus.textContent = 'No products available.';
-          return;
+        const params = new URLSearchParams();
+        params.set('limit', String(PRODUCTS_PAGE_SIZE));
+        if (cursor) {
+          params.set('cursor', cursor);
+        }
+        if (state.productsQuery) {
+          params.set('query', state.productsQuery);
         }
 
-        state.products = data.products;
-        el.products.innerHTML = '';
-        el.productsStatus.textContent = '';
+        const res = await fetch(apiUrl(`/api/products?${params.toString()}`));
+        const data = (await res.json()) as ProductsResponse;
 
-        data.products.forEach((p) => {
-          const card = document.createElement('button');
-          card.type = 'button';
-          card.className =
-            'text-left rounded-lg border border-slate-200 bg-white p-2 shadow-sm flex items-center gap-2 hover:border-black/70 hover:shadow-md transition';
-          card.dataset.productId = p.id;
+        if (!res.ok || data.error) {
+          // backend returns structured errors when Shopify is unavailable.
+          const msg =
+            data.message ||
+            'Shopify returned an error while loading products.';
+          throw new Error(`${data.error || 'error'}: ${msg}`);
+        }
 
-          const firstVariant = p.variants[0];
+        const fetched = data.products ?? [];
+        state.products = append ? [...state.products, ...fetched] : fetched;
+        state.productsPageInfo = data.pageInfo ?? null;
 
-          card.innerHTML = `
-            <div class="w-14 h-14 rounded-md bg-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0">
-              ${
-                p.image
-                  ? `<img src="${p.image}" alt="${p.title}" class="object-contain max-h-full max-w-full" />`
-                  : `<span class="text-[10px] text-slate-400">No image</span>`
-              }
-            </div>
-            <div class="flex-1 min-w-0">
-              <h4 class="text-[11px] font-semibold text-slate-900 line-clamp-1">${p.title}</h4>
-              <p class="text-[10px] text-slate-500 line-clamp-1">${p.description || ''}</p>
-              <p class="text-[10px] text-slate-600">
-                From ${
-                  firstVariant
-                    ? `${firstVariant.price} ${firstVariant.currency}`
-                    : '...'
-                }
-              </p>
-            </div>
-          `;
+        if (state.products.length === 0) {
+          el.products.innerHTML = '';
+          el.productsStatus.textContent = 'No products available.';
+        } else {
+          renderProductsList();
+        }
 
-          card.addEventListener('click', () => {
-            selectProduct(p.id);
-          });
-
-          el.products.appendChild(card);
-        });
+        updateLoadMoreVisibility();
       } catch (err) {
         console.error(err);
-        el.productsStatus.textContent = 'Failed to load products.';
+        const message =
+          err instanceof Error
+            ? err.message
+            : 'Failed to load products.';
+        if (append) {
+          el.productsLoadMore.textContent = 'Load more garments';
+        }
+        el.productsStatus.textContent = message;
+        el.productsLoadMore.classList.add('hidden');
+      } finally {
+        if (append) {
+          el.productsLoadMore.disabled = false;
+        }
       }
+    };
+
+    const handleLoadMoreProducts = () => {
+      const pageInfo = state.productsPageInfo;
+      if (!pageInfo || !pageInfo.hasNextPage || !pageInfo.endCursor) return;
+      loadProducts({ cursor: pageInfo.endCursor, append: true });
     };
 
     const handleQtyInput = () => {
@@ -645,6 +751,7 @@ export const PrintBuilder: React.FC = () => {
     el.configQty.addEventListener('input', handleQtyInput);
     el.configAddBtn.addEventListener('click', handleAddClick);
     el.artScale.addEventListener('input', handleArtScaleInput);
+    el.productsLoadMore.addEventListener('click', handleLoadMoreProducts);
 
     loadProducts();
 
@@ -654,6 +761,7 @@ export const PrintBuilder: React.FC = () => {
       el.configQty.removeEventListener('input', handleQtyInput);
       el.configAddBtn.removeEventListener('click', handleAddClick);
       el.artScale.removeEventListener('input', handleArtScaleInput);
+      el.productsLoadMore.removeEventListener('click', handleLoadMoreProducts);
       if (state.artworkPreviewUrl) {
         URL.revokeObjectURL(state.artworkPreviewUrl);
       }
@@ -787,6 +895,13 @@ export const PrintBuilder: React.FC = () => {
                   className="flex flex-col gap-2.5 max-h-[420px] overflow-y-auto pr-1"
                 ></div>
                 <p id="products-status" className="text-xs text-slate-500"></p>
+                <button
+                  id="products-load-more"
+                  className="hidden text-[11px] font-medium text-slate-700 border border-slate-300 rounded-full px-3 py-1 transition hover:border-black/70"
+                  type="button"
+                >
+                  Load more garments
+                </button>
               </div>
 
               <div
