@@ -190,6 +190,104 @@ PHASE 1 — Customer Flow (DONE)
 ✔ Shopify checkout
 ✔ Design logging
 
+8. Shopify API Enhancements (Pull Request Update)
+The backend and frontend were upgraded to match Shopify’s recommended Storefront API patterns and improve scalability across large catalogs.
+
+   New Enhancements
+   1. Cursor-Based Pagination (Shopify Standard)
+
+   /api/products now supports:
+
+   ?limit=20
+   ?cursor=ENCODED_CURSOR_STRING
+   ?query=keyword
+
+   Backend Changes:
+
+   ProductsController updated to:
+      - Allow requesting additional pages
+      - Return full pageInfo object
+
+   Example API response:
+
+   {
+   "products": [...],
+   "pageInfo": {
+      "hasNextPage": true,
+      "startCursor": "...",
+      "endCursor": "..."
+   },
+   "limit": 20
+   }
+
+   Frontend Updates:
+
+   PrintBuilder.tsx now:
+
+      - Tracks pageInfo
+      - Shows “Load more garments” button
+      - Appends next products to the list
+
+   2. Variant-Level Images
+   Previously, the front-end used a single product-level image.
+
+   Now every variant returns:
+
+   "image": "<variant image url>"
+
+   Frontend improvements:
+
+      - When selecting a color/size, the mockup automatically switches to that variant's correct image.
+      - Helps blending accuracy and realism.
+
+   3. Improved Error Handling
+
+   Backend:
+      - ShopifyClient → Wrapped in try/catch
+
+   Returns:
+
+   {
+   "error": "shopify_query_failed",
+   "message": "Unable to load products from Shopify"
+   }
+
+   Frontend:
+
+      - Recognizes backend errors
+      - Displays user-friendly status messages
+      - Prevents infinite loading states
+
+   4. Search Query Validation
+   Prevents expensive or malformed requests hitting Shopify.
+
+   Rules added:
+      - Trim empty queries
+      - Reject queries longer than 120 chars
+      - Reject invalid characters:
+
+   Allowed:
+
+   letters, numbers, spaces, :, -, ', "
+
+   Backend returns:
+
+   {
+   "error": "invalid_query",
+   "message": "Search text contains unsupported characters."
+   }
+
+   5. API Config Standardization
+   The config.php Shopify settings were cleaned up to match official naming:
+
+   Old keys → New keys:
+
+   SHOPIFY_STORE_DOMAIN → domain
+   SHOPIFY_STOREFRONT_TOKEN → storefrontToken
+   SHOPIFY_API_VERSION → apiVersion
+
+   More readable, matches Shopify docs, reduces confusion.
+
 PHASE 2 — Admin Dashboard (NEXT)
 
 ➡ Admin page UI
@@ -211,14 +309,14 @@ PHASE 4 — Polish & Deployment
 ➡ Production hosting
 ➡ Backup system
 
-8. Completion Rate
+9. Completion Rate
 
 Core customer experience: ~85%
 Entire platform including admin tools: ~60–65% overall
 
 You are well past the hardest part — the admin tools and blending refinements are straightforward compared to the API/cart system you've already completed.
 
-9. Comprehensive details regarding to the rest of the phase
+10. Comprehensive details regarding to the rest of the phase
 
 Where the remaining 35–40% lives
 
