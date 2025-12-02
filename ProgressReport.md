@@ -110,3 +110,37 @@ Triggered after cart creation — logs design into the database.
 - **Video Content Alignment**: replaced placeholder About imagery with the official Freckles reel to strengthen credibility across both A/B variants and align marketing collateral in one sprint.
 - **Setup Automation**: added an `npm run setup` command that runs Composer + npm installs concurrently, shrinking onboarding time and reducing “missing dependency” issues across the team.
 - **Shopify Data Integrity**: revalidated uploads/cart flows against Shopify after the refactor, ensuring custom line-item properties still carry artwork metadata into checkout for production tracking.
+
+12/1/2025
+
+✅ **What I Completed:**
+
+* React + Vite Frontend Migration — Successfully moved the custom apparel builder UI into a clean React component structure with Tailwind styling.
+* Backend API Integration — Confirmed `/api/upload`, `/api/products`, and `/api/cart/lines` are functioning correctly through both frontend and Postman tests.
+* Upload System Fixes — Updated the `UploadController` to return correct public URLs and validated uploads for PNG/JPG/SVG/PDF.
+* Product & Variant Flow — Products load correctly from Shopify, variant matching is stable, and live price calculation works.
+* Checkout Flow Validation — The backend successfully builds Shopify carts with custom properties and returns `checkoutUrl`.
+* Postman Validation — All core endpoints tested with happy paths and failure cases to confirm robustness.
+
+🔧 **Current Status:**
+
+* Frontend: ✅ Fully functional React UI with working preview, selectors, and cart integration
+* Backend APIs: ✅ Stable and returning clean JSON
+* Upload System: ✅ Correct URLs and storage behavior
+* Shopify Integration: ✅ Cart creation and checkout confirmed
+* Error Handling: ✅ Gracefully handles invalid uploads and variant errors
+
+🎯 **Immediate Next Steps:**
+
+* Build MySQL `designs` table — Store product, variant, artwork, and checkout metadata for production workflow.
+* Implement `POST /api/designs` — Log each completed configuration into the database after cart creation.
+* Create Admin Dashboard — A simple internal UI to view orders, artwork files, and job statuses (pending → printing → completed).
+* Add Optional Enhancements — Artwork scaling/positioning, multiple print areas, and improved section-level UI feedback.
+
+🚀 **Quick Wins:**
+
+* Generate SQL schema for `designs` table
+* Add `Database/connection.php` + PDO integration
+* Build `DesignsController.php` with `store()` method
+* Connect frontend checkout flow to `/api/designs` logging
+* Begin admin UI structure (React or PHP) with Tailwind components
