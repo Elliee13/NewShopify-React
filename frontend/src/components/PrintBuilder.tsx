@@ -42,6 +42,18 @@ console.log('Products URL =', apiUrl('/api/products'));
 
 export const PrintBuilder: React.FC = () => {
   useEffect(() => {
+    const clamp = (value: number, min: number, max: number) =>
+      Math.min(Math.max(value, min), max);
+    const DEFAULT_ARTWORK_TRANSFORM = {
+      xPercent: 50,
+      yPercent: 45,
+      scale: 0.6,
+      invert: false,
+    };
+    const DARK_COLOR_KEYWORDS = ['black', 'charcoal', 'navy', 'midnight', 'graphite', 'forest', 'dark'];
+    const LIGHT_COLOR_KEYWORDS = ['white', 'natural', 'cream', 'ivory', 'light', 'ash', 'sand'];
+    const CONFIG_DESCRIPTION_LIMIT = 160;
+
     const state: {
       products: Product[];
       artworkFile: File | null;
@@ -54,6 +66,10 @@ export const PrintBuilder: React.FC = () => {
       lastVariant: Variant | null;
       pageInfo: PageInfo;
       isLoadingProducts: boolean;
+      artworkTransform: typeof DEFAULT_ARTWORK_TRANSFORM;
+      artworkBlendMode: 'light' | 'dark';
+      artworkBlendManual: boolean;
+      configDescriptionExpanded: boolean;
     } = {
       products: [],
       artworkFile: null,
@@ -66,6 +82,10 @@ export const PrintBuilder: React.FC = () => {
       lastVariant: null,
       pageInfo: null,
       isLoadingProducts: false,
+      artworkTransform: { ...DEFAULT_ARTWORK_TRANSFORM },
+      artworkBlendMode: 'light',
+      artworkBlendManual: false,
+      configDescriptionExpanded: false,
     };
 
     const el = {
@@ -90,6 +110,19 @@ export const PrintBuilder: React.FC = () => {
       configQty: document.getElementById('config-qty') as HTMLInputElement | null,
       configPrice: document.getElementById('config-price'),
       configAddBtn: document.getElementById('config-add-btn') as HTMLButtonElement | null,
+      configPreview: document.getElementById('config-preview'),
+      configArtControls: document.getElementById('config-art-controls'),
+      configArtSize: document.getElementById('config-art-size') as HTMLInputElement | null,
+      configArtSizeValue: document.getElementById('config-art-size-value'),
+      configArtInvert: document.getElementById('config-art-invert') as HTMLButtonElement | null,
+      configArtReset: document.getElementById('config-art-reset') as HTMLButtonElement | null,
+      configArtBlendLight: document.getElementById('config-art-blend-light') as HTMLButtonElement | null,
+      configArtBlendDark: document.getElementById('config-art-blend-dark') as HTMLButtonElement | null,
+      configArtBlendAuto: document.getElementById('config-art-blend-auto') as HTMLButtonElement | null,
+      configArtBlendStatus: document.getElementById('config-art-blend-status'),
+      configProductDescriptionToggle: document.getElementById(
+        'config-product-description-toggle',
+      ) as HTMLButtonElement | null,
       debugVariantId: document.getElementById('debug-variant-id'),
       debugSelection: document.getElementById('debug-selection'),
     };
@@ -115,6 +148,17 @@ export const PrintBuilder: React.FC = () => {
       !el.configQty ||
       !el.configPrice ||
       !el.configAddBtn ||
+      !el.configPreview ||
+      !el.configArtControls ||
+      !el.configArtSize ||
+      !el.configArtSizeValue ||
+      !el.configArtInvert ||
+      !el.configArtReset ||
+      !el.configArtBlendLight ||
+      !el.configArtBlendDark ||
+      !el.configArtBlendAuto ||
+      !el.configArtBlendStatus ||
+      !el.configProductDescriptionToggle ||
       !el.debugVariantId ||
       !el.debugSelection
     ) {
@@ -122,6 +166,103 @@ export const PrintBuilder: React.FC = () => {
       console.warn('PrintBuilder: missing DOM elements, skipping binding.');
       return;
     }
+
+    const applyArtworkTransform = () => {
+      if (!el.configArtOverlay) return;
+      const { xPercent, yPercent, scale, invert } = state.artworkTransform;
+      el.configArtOverlay.style.top = `${yPercent}%`;
+      el.configArtOverlay.style.left = `${xPercent}%`;
+      el.configArtOverlay.style.transform = `translate(-50%, -50%) scale(${scale})`;
+
+      const filters: string[] = [];
+      if (invert) filters.push('invert(1)');
+      if (state.artworkBlendMode === 'dark') {
+        filters.push('brightness(1.25)', 'saturate(1.05)');
+        el.configArtOverlay.style.opacity = '1';
+      } else {
+        filters.push('contrast(1.08)', 'saturate(1.05)');
+        el.configArtOverlay.style.opacity = '0.95';
+      }
+      el.configArtOverlay.style.filter = filters.join(' ');
+      el.configArtOverlay.style.mixBlendMode = 'normal';
+    };
+
+    const updateArtworkControls = () => {
+      if (el.configArtSize && el.configArtSizeValue && el.configArtInvert) {
+        el.configArtSize.value = state.artworkTransform.scale.toFixed(2);
+        el.configArtSizeValue.textContent = `${Math.round(state.artworkTransform.scale * 100)}%`;
+        el.configArtInvert.textContent = state.artworkTransform.invert ? 'Invert off' : 'Invert colors';
+      }
+
+      if (
+        el.configArtBlendLight &&
+        el.configArtBlendDark &&
+        el.configArtBlendStatus &&
+        el.configArtBlendAuto
+      ) {
+        const activateBtn = (button: HTMLButtonElement, active: boolean) => {
+          button.classList.toggle('bg-black', active);
+          button.classList.toggle('text-white', active);
+          button.classList.toggle('border-black', active);
+          button.classList.toggle('bg-white', !active);
+          button.classList.toggle('text-slate-700', !active);
+          button.classList.toggle('border-slate-300', !active);
+        };
+
+        activateBtn(el.configArtBlendLight, state.artworkBlendMode === 'light');
+        activateBtn(el.configArtBlendDark, state.artworkBlendMode === 'dark');
+
+        el.configArtBlendStatus.textContent = state.artworkBlendManual
+          ? 'Manual blend'
+          : state.selectedColor
+          ? `Auto from ${state.selectedColor}`
+          : 'Auto blend';
+
+        el.configArtBlendAuto.disabled = !state.artworkBlendManual;
+        el.configArtBlendAuto.classList.toggle('opacity-50', !state.artworkBlendManual);
+      }
+    };
+
+    const enableArtworkControls = (enabled: boolean) => {
+      [
+        el.configArtSize,
+        el.configArtInvert,
+        el.configArtReset,
+        el.configArtBlendLight,
+        el.configArtBlendDark,
+        el.configArtBlendAuto,
+      ].forEach((control) => {
+        if (control) control.disabled = !enabled;
+      });
+      if (el.configArtControls) {
+        el.configArtControls.classList.toggle('opacity-50', !enabled);
+        el.configArtControls.classList.toggle('pointer-events-none', !enabled);
+      }
+    };
+
+    enableArtworkControls(false);
+    updateArtworkControls();
+
+    const guessBlendModeFromColor = (color: string | null) => {
+      if (!color) return 'light';
+      const normalized = color.toLowerCase();
+      if (DARK_COLOR_KEYWORDS.some((keyword) => normalized.includes(keyword))) return 'dark';
+      if (LIGHT_COLOR_KEYWORDS.some((keyword) => normalized.includes(keyword))) return 'light';
+      return 'light';
+    };
+
+    const syncBlendModeWithColor = () => {
+      if (state.artworkBlendManual) {
+        updateArtworkControls();
+        return;
+      }
+      const computed = guessBlendModeFromColor(state.selectedColor);
+      if (state.artworkBlendMode !== computed) {
+        state.artworkBlendMode = computed;
+        applyArtworkTransform();
+      }
+      updateArtworkControls();
+    };
 
     const setProductImageForVariant = (variant: Variant | null) => {
       if (!el.configProductImage || !state.selectedProduct) return;
@@ -146,6 +287,9 @@ export const PrintBuilder: React.FC = () => {
         URL.revokeObjectURL(state.artworkPreviewUrl);
       }
       state.artworkPreviewUrl = URL.createObjectURL(file);
+      state.artworkTransform = { ...DEFAULT_ARTWORK_TRANSFORM };
+      state.artworkBlendManual = false;
+      syncBlendModeWithColor();
 
       el.artPreview.src = state.artworkPreviewUrl;
       el.artPreview.classList.remove('hidden');
@@ -162,6 +306,9 @@ export const PrintBuilder: React.FC = () => {
       if (state.selectedProduct) {
         el.configArtOverlay.src = state.artworkPreviewUrl;
         el.configArtOverlay.classList.remove('hidden');
+        applyArtworkTransform();
+        enableArtworkControls(true);
+        updateArtworkControls();
       }
 
       try {
@@ -254,19 +401,26 @@ export const PrintBuilder: React.FC = () => {
 
       state.quantity = Number(el.configQty.value || 1) || 1;
 
+      syncBlendModeWithColor();
+
       el.configEmpty.classList.add('hidden');
       el.configContent.classList.remove('hidden');
 
       // Default product image (will be refined by variant in updateVariantAndPrice)
       el.configProductImage.src = product.image || '';
       el.configProductTitle.textContent = product.title;
-      el.configProductDescription.textContent = product.description || '';
+      state.configDescriptionExpanded = false;
+      renderConfigDescription(product.description);
 
       if (state.artworkPreviewUrl) {
         el.configArtOverlay.src = state.artworkPreviewUrl;
         el.configArtOverlay.classList.remove('hidden');
+        applyArtworkTransform();
+        enableArtworkControls(true);
+        updateArtworkControls();
       } else {
         el.configArtOverlay.classList.add('hidden');
+        enableArtworkControls(false);
       }
 
       el.configColors.innerHTML = '';
@@ -345,7 +499,8 @@ export const PrintBuilder: React.FC = () => {
           </div>
           <div class="flex-1 min-w-0">
             <h4 class="text-[11px] font-semibold text-slate-900 line-clamp-1">${p.title}</h4>
-            <p class="text-[10px] text-slate-500 line-clamp-1">${p.description || ''}</p>
+            <p class="text-[10px] text-slate-500 product-description"></p>
+            <button type="button" class="product-description-toggle mt-0.5 hidden text-[10px] text-slate-600 underline">Read more</button>
             <p class="text-[10px] text-slate-600">
               From ${
                 firstVariant
@@ -356,6 +511,37 @@ export const PrintBuilder: React.FC = () => {
           </div>
         `;
 
+        const descEl = card.querySelector('.product-description') as HTMLParagraphElement | null;
+        const toggleEl = card.querySelector(
+          '.product-description-toggle',
+        ) as HTMLButtonElement | null;
+        const fullDescription = p.description || '';
+        const DESCRIPTION_LIMIT = 80;
+
+        if (descEl && toggleEl) {
+          const needsTruncate = fullDescription.length > DESCRIPTION_LIMIT;
+          let expanded = false;
+          const truncated = needsTruncate
+            ? `${fullDescription.slice(0, DESCRIPTION_LIMIT).trim()}…`
+            : fullDescription;
+
+          const renderDescription = () => {
+            descEl.textContent = expanded ? fullDescription : truncated;
+            toggleEl.textContent = expanded ? 'Show less' : 'Read more';
+            toggleEl.classList.toggle('hidden', !needsTruncate);
+          };
+
+          if (needsTruncate) {
+            toggleEl.addEventListener('click', (event) => {
+              event.stopPropagation();
+              expanded = !expanded;
+              renderDescription();
+            });
+          }
+
+          renderDescription();
+        }
+
         card.addEventListener('click', () => {
           selectProduct(p.id);
         });
@@ -363,6 +549,25 @@ export const PrintBuilder: React.FC = () => {
         el.products.appendChild(card);
       });
     };
+
+    const renderConfigDescription = (description: string | null | undefined) => {
+      if (!el.configProductDescription || !el.configProductDescriptionToggle) return;
+      const text = description || '';
+      const needsTruncate = text.length > CONFIG_DESCRIPTION_LIMIT;
+      const displayText =
+        needsTruncate && !state.configDescriptionExpanded
+          ? `${text.slice(0, CONFIG_DESCRIPTION_LIMIT).trim()}…`
+          : text;
+
+      el.configProductDescription.textContent = displayText;
+      el.configProductDescriptionToggle.classList.toggle('hidden', !needsTruncate);
+      el.configProductDescriptionToggle.textContent = state.configDescriptionExpanded
+        ? 'Show less'
+        : 'Read more';
+      el.configProductDescriptionToggle.setAttribute('aria-expanded', String(state.configDescriptionExpanded));
+    };
+
+    renderConfigDescription('');
 
     const updateLoadMoreButton = () => {
       if (!el.productsLoadMore) return;
@@ -553,11 +758,91 @@ export const PrintBuilder: React.FC = () => {
       }
     };
 
+    const handleArtSizeChange = () => {
+      if (!el.configArtSize) return;
+      const value = Number(el.configArtSize.value);
+      if (Number.isNaN(value)) return;
+      state.artworkTransform.scale = clamp(value, 0.3, 1.5);
+      applyArtworkTransform();
+      updateArtworkControls();
+    };
+
+    const handleArtInvertClick = () => {
+      state.artworkTransform.invert = !state.artworkTransform.invert;
+      applyArtworkTransform();
+      updateArtworkControls();
+    };
+
+    const handleArtResetClick = () => {
+      state.artworkTransform = { ...DEFAULT_ARTWORK_TRANSFORM };
+      applyArtworkTransform();
+      updateArtworkControls();
+    };
+
+    const handleConfigDescriptionToggle = () => {
+      if (!state.selectedProduct) return;
+      state.configDescriptionExpanded = !state.configDescriptionExpanded;
+      renderConfigDescription(state.selectedProduct.description);
+    };
+
+    const handleBlendLightClick = () => {
+      state.artworkBlendMode = 'light';
+      state.artworkBlendManual = true;
+      applyArtworkTransform();
+      updateArtworkControls();
+    };
+
+    const handleBlendDarkClick = () => {
+      state.artworkBlendMode = 'dark';
+      state.artworkBlendManual = true;
+      applyArtworkTransform();
+      updateArtworkControls();
+    };
+
+    const handleBlendAutoClick = () => {
+      state.artworkBlendManual = false;
+      syncBlendModeWithColor();
+    };
+
+    const handleArtPointerDown = (event: PointerEvent) => {
+      if (!state.artworkPreviewUrl || !el.configPreview) return;
+      event.preventDefault();
+      const previewRect = el.configPreview.getBoundingClientRect();
+      const startPointer = { x: event.clientX, y: event.clientY };
+      const startTransform = { ...state.artworkTransform };
+
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        const deltaXPercent = ((moveEvent.clientX - startPointer.x) / previewRect.width) * 100;
+        const deltaYPercent = ((moveEvent.clientY - startPointer.y) / previewRect.height) * 100;
+
+        state.artworkTransform.xPercent = clamp(startTransform.xPercent + deltaXPercent, 5, 95);
+        state.artworkTransform.yPercent = clamp(startTransform.yPercent + deltaYPercent, 5, 95);
+        applyArtworkTransform();
+        updateArtworkControls();
+      };
+
+      const handlePointerUp = () => {
+        document.removeEventListener('pointermove', handlePointerMove);
+        document.removeEventListener('pointerup', handlePointerUp);
+      };
+
+      document.addEventListener('pointermove', handlePointerMove);
+      document.addEventListener('pointerup', handlePointerUp);
+    };
+
     // Bind events
     el.artInput.addEventListener('change', handleArtworkChange as EventListener);
     el.configSize.addEventListener('change', updateVariantAndPrice);
     el.configQty.addEventListener('input', handleQtyInput);
     el.configAddBtn.addEventListener('click', handleAddClick);
+    el.configArtOverlay.addEventListener('pointerdown', handleArtPointerDown as EventListener);
+    el.configArtSize.addEventListener('input', handleArtSizeChange);
+    el.configArtInvert.addEventListener('click', handleArtInvertClick);
+    el.configArtReset.addEventListener('click', handleArtResetClick);
+    el.configProductDescriptionToggle.addEventListener('click', handleConfigDescriptionToggle);
+    el.configArtBlendLight.addEventListener('click', handleBlendLightClick);
+    el.configArtBlendDark.addEventListener('click', handleBlendDarkClick);
+    el.configArtBlendAuto.addEventListener('click', handleBlendAutoClick);
     if (el.productsLoadMore) {
       el.productsLoadMore.addEventListener('click', handleLoadMoreClick);
     }
@@ -570,6 +855,14 @@ export const PrintBuilder: React.FC = () => {
       el.configSize.removeEventListener('change', updateVariantAndPrice);
       el.configQty.removeEventListener('input', handleQtyInput);
       el.configAddBtn.removeEventListener('click', handleAddClick);
+      el.configArtOverlay.removeEventListener('pointerdown', handleArtPointerDown as EventListener);
+      el.configArtSize.removeEventListener('input', handleArtSizeChange);
+      el.configArtInvert.removeEventListener('click', handleArtInvertClick);
+      el.configArtReset.removeEventListener('click', handleArtResetClick);
+      el.configProductDescriptionToggle.removeEventListener('click', handleConfigDescriptionToggle);
+      el.configArtBlendLight.removeEventListener('click', handleBlendLightClick);
+      el.configArtBlendDark.removeEventListener('click', handleBlendDarkClick);
+      el.configArtBlendAuto.removeEventListener('click', handleBlendAutoClick);
       if (el.productsLoadMore) {
         el.productsLoadMore.removeEventListener('click', handleLoadMoreClick);
       }
@@ -739,18 +1032,94 @@ export const PrintBuilder: React.FC = () => {
                   <div className="flex gap-4 flex-col sm:flex-row">
                     <div className="flex-1 flex flex-col gap-2">
                       <p className="text-[11px] font-medium text-slate-600">Live preview</p>
-                      <div className="relative w-full max-w-xs aspect-4/5 bg-white rounded-lg border border-slate-200 flex items-center justify-center overflow-hidden">
+                      <div
+                        id="config-preview"
+                        className="relative w-full max-w-xs aspect-4/5 bg-white rounded-lg border border-slate-200 flex items-center justify-center overflow-hidden"
+                      >
                         <img
                           id="config-product-image"
+                          draggable={false}
                           alt="Product mockup"
                           className="max-h-full max-w-full object-contain"
                         />
                         <img
                           id="config-art-overlay"
                           alt="Artwork overlay"
-                          className="pointer-events-none absolute max-h-[35%] max-w-[60%] object-contain opacity-90"
-                          style={{ top: '40%' }}
+                          className="absolute max-h-[35%] max-w-[60%] object-contain opacity-90 cursor-move"
+                          style={{ top: '40%', left: '50%', transform: 'translate(-50%, -50%)' }}
                         />
+                      </div>
+
+                      <div
+                        id="config-art-controls"
+                        className="rounded-lg border border-slate-200 bg-white/70 p-3 space-y-3 text-[11px]"
+                      >
+                        <p className="font-medium text-slate-700">Artwork controls</p>
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-slate-600">Size</span>
+                            <span id="config-art-size-value" className="text-slate-500">60%</span>
+                          </div>
+                          <input
+                            id="config-art-size"
+                            type="range"
+                            min="0.3"
+                            max="1.4"
+                            step="0.05"
+                            defaultValue="0.6"
+                            className="w-full h-1 cursor-pointer accent-black"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-600">Fabric shade</span>
+                            <span id="config-art-blend-status" className="text-slate-500">
+                              Auto blend
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              id="config-art-blend-light"
+                              type="button"
+                              className="rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-medium text-slate-700 hover:border-black/70"
+                            >
+                              Light fabric
+                            </button>
+                            <button
+                              id="config-art-blend-dark"
+                              type="button"
+                              className="rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-medium text-slate-700 hover:border-black/70"
+                            >
+                              Dark fabric
+                            </button>
+                            <button
+                              id="config-art-blend-auto"
+                              type="button"
+                              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] text-slate-600 hover:border-black/70"
+                            >
+                              Auto detect
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            id="config-art-invert"
+                            type="button"
+                            className="rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-medium text-slate-700 hover:border-black/70"
+                          >
+                            Invert colors
+                          </button>
+                          <button
+                            id="config-art-reset"
+                            type="button"
+                            className="rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] text-slate-700 hover:border-black/70"
+                          >
+                            Reset position
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-slate-500">
+                          Tip: drag the artwork on the preview to move it.
+                        </p>
                       </div>
                     </div>
 
@@ -758,6 +1127,13 @@ export const PrintBuilder: React.FC = () => {
                       <div>
                         <p className="text-sm font-semibold text-slate-900" id="config-product-title"></p>
                         <p className="text-[11px] text-slate-500 mt-1" id="config-product-description"></p>
+                        <button
+                          type="button"
+                          id="config-product-description-toggle"
+                          className="mt-1 hidden text-[10px] text-slate-600 underline"
+                        >
+                          Read more
+                        </button>
                       </div>
 
                       <div>
@@ -833,3 +1209,4 @@ export const PrintBuilder: React.FC = () => {
     </section>
   );
 };
+
