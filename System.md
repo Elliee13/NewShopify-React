@@ -1,335 +1,112 @@
-📘 CUSTOM SHOPIFY BUILDER SYSTEM — UPDATED DOCUMENTATION (Dec 2025)
+📘 CUSTOM SHOPIFY BUILDER SYSTEM — FULL UPDATED DOCUMENTATION
+
+(Up to Admin Dashboard + Activity Logs)
+
+System
+
 1. System Overview
-A hybrid React + PHP system allowing customers to:
 
-1. Upload artwork
-2. Select a garment
-3. Customize color, size, quantity
-4. Preview the final mockup
-5. Checkout through Shopify
-6. Log the design into a MySQL database for production
+A hybrid React + PHP + MySQL + Shopify Storefront API solution enabling customers to design products, upload artwork, preview the mockup, and check out through Shopify.
 
-The system also includes a backend API layer and an upcoming production dashboard.
+Internally, the system contains an advanced Admin Dashboard for production teams.
 
-2. Architecture Summary
-
+2. Core Architecture
 Frontend (React + Vite)
 
-1. Artwork upload + live preview
-2. Product & variant selection synced to Shopify
-3. Dynamic mockup layering system
-4. Live pricing based on selected variant
-5. Shopify checkout creation
-6. Logs all design data after cart creation
+   Artwork upload with live rendering
+   Product + variant selection
+   Positioning & scaling settings
+   Real-time variant image switching
+   Shopify checkout creation
+   Logs design metadata to backend
+   Admin dashboard (React)
 
-Backend (PHP)
+Backend (PHP REST API)
 
-1. REST API (/api/products, /api/upload, /api/cart/lines, /api/designs)
-2. File upload validation + storage
-3. Shopify Storefront API integration
-4. MySQL database connection for storing designs
-5. MVC-style controllers with clean routing
+   Shopify product fetching (cursor-based pagination)
+   Cart creation + checkout URL generation
+   Artwork upload API
+   MySQL integrations
+   Auth-protected admin routes
+   Design activity logging
 
 Database
 
-Table: designs
-
-   productId
-   variantId
-   color, size, quantity
-   artworkFile, artworkUrl
-   cartId, checkoutUrl
-   status (pending, printing, completed)
-   timestamps
-
-3. Completed Features (Updated)
-✅ Frontend Customizer
-
-   Fully functional garment picker
-   Overlay preview system
-   Quantity & variant logic
-   Artwork upload (local + server)
-   Shopify checkout redirect
-   Debug tooling
-   Basic art scaling slider
-
-✅ Backend API
-
-   Product fetching from Shopify
-   Cart creation and checkout URL retrieval
-   Secure artwork uploads
-   MySQL design logging
-   /api/designs GET + POST
-
-✅ Design Logging System
-
-   Stores every custom job into the database
-   Includes all metadata needed for production
-   Ensures production team can trace the order
-
-✅ Core Customer Flow
-
-Upload → Choose Garment → Configure → Checkout → Store Job
-This entire loop is now fully working.
-
-Current System Completion: ~60–65%
-
-The foundation is DONE.
-What’s left is Admin UI + refinement + art-blending improvements.
-
-4. Phase 2 — Admin Dashboard (Next in development)
-🎛️ Admin Dashboard V1
-
-Purpose: allow production staff to manage print jobs.
-
-Features:
-
-View all designs
-
-Sort & filter by:
-   status
-   product
-   date
-
-Artwork viewer
-   Show uploaded artwork file
-   Show garment image
-
-Status controls
-   Pending → Printing → Completed
-
-Notes field (optional)
-Search bar (by customer name, product, etc.)
-
-API additions:
-
-   GET /api/designs
-   PATCH /api/designs/{id} to update status
-   Optional: DELETE /api/designs/{id}
-
-UI Tech:
-
-Pure PHP + HTML + Tailwind (fastest)
-OR
-React admin panel (optional)
-
-5. Phase 3 — Art Blending Improvements
-
-Your customers need the mockup to look “real,” not just an image pasted on top.
-
-🖼️ Mockup Quality Roadmap
-
-A) Per-Product Art Placement Config (DOING NEXT)
-
-Each garment gets a config:
-
-{
-  "x": 0.5,
-  "y": 0.32,
-  "w": 0.45,
-  "blendMode": "multiply",
-  "opacity": 0.9
-}
-
-
-This allows:
-
-   Correct placement for every garment
-   Appropriate blending based on shirt color
-   Scaling limits (avoid too-large prints)
-
-B) Better Blending (Target Improvement)
-
-   Use mix-blend-mode: multiply for light shirts
-   Use screen / overlay for dark shirts
-   Auto-detect dominant garment luminance
-   Adjust opacity per color group
-
-C) Future (Optional AI)
-
-   AI-generated mockup that looks real
-   Automatic wrinkle simulation
-   Shadow + lighting adjustment
-
-⚠️ AI mockup generator is optional and saved for later.
-
-6. Phase 4 — Final Polish & Deployment
-🧪 Quality Assurance
-
-   Full testing across 10 garment types
-   Stress test image uploads (25MB)
-   Verify Shopify checkout on staging
-   Validate admin workflow end-to-end
-
-🔐 Security
-
-   Protect Admin Dashboard with login
-   Move API keys to environment variables
-   Enforce HTTPS in production
-   Sanitize uploaded file names
-
-🚀 Deployment
-
-   Deploy backend to:
-      cPanel / VPS / DigitalOcean / Render
-   Deploy frontend to:
-      Netlify / Vercel / static hosting
-
-📦 Backup Strategy
-
-   Daily MySQL backups
-   Weekly design archive
-   Auto-clean orphan artwork files
-
-7. Full Updated Roadmap Summary
-PHASE 1 — Customer Flow (DONE)
-
-✔ Upload
-✔ Product selection
-✔ Customization + preview
-✔ Shopify checkout
-✔ Design logging
-
-8. Shopify API Enhancements (Pull Request Update)
-The backend and frontend were upgraded to match Shopify’s recommended Storefront API patterns and improve scalability across large catalogs.
-
-   New Enhancements
-   1. Cursor-Based Pagination (Shopify Standard)
-
-   /api/products now supports:
-
-   ?limit=20
-   ?cursor=ENCODED_CURSOR_STRING
-   ?query=keyword
-
-   Backend Changes:
-
-   ProductsController updated to:
-      - Allow requesting additional pages
-      - Return full pageInfo object
-
-   Example API response:
-
-   {
-   "products": [...],
-   "pageInfo": {
-      "hasNextPage": true,
-      "startCursor": "...",
-      "endCursor": "..."
-   },
-   "limit": 20
-   }
-
-   Frontend Updates:
-
-   PrintBuilder.tsx now:
-
-      - Tracks pageInfo
-      - Shows “Load more garments” button
-      - Appends next products to the list
-
-   2. Variant-Level Images
-   Previously, the front-end used a single product-level image.
-
-   Now every variant returns:
-
-   "image": "<variant image url>"
-
-   Frontend improvements:
-
-      - When selecting a color/size, the mockup automatically switches to that variant's correct image.
-      - Helps blending accuracy and realism.
-
-   3. Improved Error Handling
-
-   Backend:
-      - ShopifyClient → Wrapped in try/catch
-
-   Returns:
-
-   {
-   "error": "shopify_query_failed",
-   "message": "Unable to load products from Shopify"
-   }
-
-   Frontend:
-
-      - Recognizes backend errors
-      - Displays user-friendly status messages
-      - Prevents infinite loading states
-
-   4. Search Query Validation
-   Prevents expensive or malformed requests hitting Shopify.
-
-   Rules added:
-      - Trim empty queries
-      - Reject queries longer than 120 chars
-      - Reject invalid characters:
-
-   Allowed:
-
-   letters, numbers, spaces, :, -, ', "
-
-   Backend returns:
-
-   {
-   "error": "invalid_query",
-   "message": "Search text contains unsupported characters."
-   }
-
-   5. API Config Standardization
-   The config.php Shopify settings were cleaned up to match official naming:
-
-   Old keys → New keys:
-
-   SHOPIFY_STORE_DOMAIN → domain
-   SHOPIFY_STOREFRONT_TOKEN → storefrontToken
-   SHOPIFY_API_VERSION → apiVersion
-
-   More readable, matches Shopify docs, reduces confusion.
-
-PHASE 2 — Admin Dashboard (NEXT)
-
-➡ Admin page UI
-➡ Status update system
-➡ Artwork viewer
-➡ Filtering + search
-➡ Production notes
-
-PHASE 3 — Mockup Blending Enhancements
-
-➡ Per-garment blend configs
-➡ Light/dark mode blending
-➡ Better scaling logic
-
-PHASE 4 — Polish & Deployment
-
-➡ QA testing
-➡ Security
-➡ Production hosting
-➡ Backup system
-
-9. Completion Rate
-
-Core customer experience: ~85%
-Entire platform including admin tools: ~60–65% overall
-
-You are well past the hardest part — the admin tools and blending refinements are straightforward compared to the API/cart system you've already completed.
-
-10. Comprehensive details regarding to the rest of the phase
-
-Where the remaining 35–40% lives
-
-Admin Dashboard V1
-   - Listing designs
-   - Filters, status updates
-   - Artwork viewer
-
-Art blending improvements
-   - Per-product tweak config, better overlay logic
-
-Production readiness
-   - Auth/permissions for admin
-   - More defensive error handling
-   - Final UX polish + responsive tweaks
-   - Staging/production deployment + basic monitoring
+Tables:
+   designs (core job info)
+   design_events (activity timeline logs)
+
+3. Completed Features (as of today)
+✅ Customer Builder
+
+   Art upload → preview → product selection → checkout
+   Accurate product variant image rendering
+   Full Shopify API compliance
+   Logs the custom order into database
+   Reliable cart + checkout flow
+
+✅ Backend API Layer
+
+   /api/products
+   /api/upload
+   /api/cart/lines
+   /api/designs (GET, POST)
+   /api/designs/status
+   /api/designs/archive
+   /api/designs/notes
+   NEW: /api/designs/logs
+
+✅ Admin Dashboard
+
+Modern layout using Tailwind
+Login system + protected API endpoints
+Job listing with:
+   Pagination
+   Sorting
+   Filtering
+   Search
+   Status updates
+   Archive control
+   CSV export
+   Include archived toggle
+
+✅ Job Details Panel
+
+   Metadata overview
+   Notes editor with live save
+   Auto-updates parent table
+   Activity Timeline (status changes, notes updates, archive events)
+
+4. Phase Breakdown (Concise)
+PHASE 1 — Builder (DONE)
+
+Customer-facing customizer + Shopify checkout.
+
+PHASE 2 — Admin Dashboard (DONE except visual polish)
+
+   Core table
+   Artwork modal
+   Job panel
+   Notes
+   Logs
+   Auth
+
+PHASE 3 — Mockup System Upgrade (Done)
+Improve realism of previews via per-product configs.
+
+PHASE 4 — Deployment & Security
+Prepare backend + frontend for real Shopify environment.
+
+PHASE 5 — Shopify Wiring
+Embed builder inside theme via App Proxy/App Block.
+
+PHASE 6 — Customer Accounts
+Track designs per customer.
+
+5. Completion Rate
+
+Customer system: 85% done
+Admin system: 95% done
+Overall platform: 70% complete
+
+The hardest parts are already finished.

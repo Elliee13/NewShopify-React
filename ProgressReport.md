@@ -144,3 +144,221 @@ Triggered after cart creation — logs design into the database.
 * Build `DesignsController.php` with `store()` method
 * Connect frontend checkout flow to `/api/designs` logging
 * Begin admin UI structure (React or PHP) with Tailwind components
+
+12/3/2025
+
+✅ What I Completed:
+Frontend (React + Vite)
+
+- Built the Admin Dashboard entry point with React Router ( /admin/* ).
+- Created the Admin layout, top nav, sidebar, and environment badges.
+- Implemented the Print Jobs page (DesignsPage) with filters, search, pagination, and clean UI.
+- Designed and integrated a fully functional jobs table:
+  - Created column layout (Created, Product/Variant, Qty, Status, Artwork, Checkout)
+  - Added status pills (Pending/Printing/Completed)
+  - Added artwork and checkout action buttons
+  - Styled using Tailwind with a Shopify-admin-like UI
+
+Backend (PHP MVC)
+
+- Integrated /api/designs GET endpoint with:
+  - Pagination
+  - Search filtering
+  - Status filtering
+  - Sorting
+
+- Updated SQL query + response mapping to match TypeScript types (removed updated_at mismatch).
+- Added proper JSON response structure (data + pageInfo).
+- Implemented CORS configuration for local React dev environment.
+- Verified data flow end-to-end for real jobs from the MySQL designs table.
+
+API + Connectivity
+- Fixed all CORS issues between React (localhost:3000) and XAMPP (/backend/public/api.php).
+- Validated GET /api/designs in Postman (200 OK).
+- Connected React’s fetchDesigns() to the backend and confirmed correct JSON output.
+- Removed legacy debug JSON card and ensured UI renders the new jobs table.
+
+🔧 Current Status:
+
+- Admin layout: ✅ Complete
+- Designs listing page: ✅ Fully functional
+- GET /api/designs: ✅ Refined and operational
+- Table rendering: ✅ Clean UI with Tailwind
+- Filters & Search: ✅ Working
+- Pagination: ✅ Working
+- CORS handling: ✅ Working
+- Data flow React → PHP → MySQL → React: ✅ Stable
+
+Nothing in the current flow is blocking progress.
+
+🎯 Immediate Next Steps:
+1. Status Updater (Phase D)
+  Add a PATCH /api/designs/:id or /api/designs/status endpoint
+  Add a “Change Status” dropdown in each row
+  Support workflow:
+  Pending → Printing → Completed
+  Implement optimistic UI updates
+
+2. Artwork Modal (Phase E)
+  Add modal viewer for artwork files
+  Include download button and larger preview
+
+3. Enhancements
+
+  Improve Product/Variant formatting with Shopify titles
+  Add date range filter
+  Add sorting controls in the UI
+
+🚀 Quick Wins:
+
+  Add updateStatus() API to backend (fast to implement)
+  Build StatusDropdown.tsx component
+  Add modal component for artwork (ArtworkModal.tsx)
+  Add “Completed Jobs” sidebar route
+  Add loading skeleton for the table
+
+  12 - 4 to 5 - 2025
+
+  ✅ Progress Report
+
+Frontend (React + Vite)
+
+Admin Dashboard
+
+  Built the entire Admin Dashboard system with React Router under /admin/*.
+  Added Admin Login screen with environment password (Vite env variables).
+  Developed a protected admin layout (sidebar + topbar + environment badges).
+  Added conditional rendering so /admin is locked until authenticated.
+
+DesignsPage (Print Jobs)
+
+Implemented a modern, production-grade UI for managing print jobs:
+  Status tabs (All / Pending / Printing / Completed)
+  Sort (Newest First / Oldest First)
+  Search bar with icon
+  Pagination footer
+  CSV export
+  Include Archived toggle
+
+Fully redesigned UI using Tailwind:
+
+  Rounded-3xl containers
+  Light Shopify-style shadows
+  Status color accents
+  Consistent spacing & typography
+  Hover states & clean transitions
+
+Job Details Panel
+
+  Implemented full slide-out drawer with:
+    Metadata summary
+    Notes editor (with Save + Reset)
+    Full Activity Timeline
+    Sticky header & scrollable content
+
+Artwork Viewer Modal
+
+  Added modal to preview uploaded artwork in large view.
+
+UX Improvements
+
+  Added status-colored accents in table rows
+  Added copy buttons (product ID, variant ID, checkout URL)
+  Updated pagination UI to rounded-pill format
+  Added loading states, empty states, error states
+  Table now full width with proper responsive behavior
+
+Backend (PHP MVC - DesignsController)
+
+API Routing
+
+  Converted /api/designs and related routes to protected admin routes.
+  Added AdminAuth middleware using X-Admin-Token header.
+  Added CORS rules with credentials support.
+
+Designs API Enhancements
+
+/api/designs now supports:
+  Pagination
+  Search
+  Status filtering
+  Sorting (ASC / DESC)
+  Archived filtering
+  Summary counts (pending/printing/completed/total)
+
+Updated SQL structure & output mapping:
+  Added notes field support
+  Consistent timestamp fields
+  Normalized response to match TypeScript types
+
+Job Status Update API
+
+  /api/designs/status supports:
+    Validation
+    Optimistic UI
+    Error fallback
+
+Archive API
+
+  /api/designs/archive
+    Marks job archived
+    Updates timestamp
+    Immediately removes job from UI
+
+Notes API
+
+  /api/designs/notes
+    Saves internal notes
+    Updates job updated_at
+    Live update in React via callback
+
+Event Logging System
+
+  Created design_events table for complete audit history:
+    status_change
+    note_update
+    archive
+
+  Extended backend:
+    Added automatic event recording in updateStatus(), updateNotes(), and archive().
+    Implemented /api/designs/logs endpoint to fetch job history.
+
+Frontend:
+
+  Activity Timeline now shows:
+    Status changes with colors
+    Notes edit previews
+    Archive events
+    Timestamps
+
+API + Connectivity
+
+  Fixed all CORS issues between React and PHP:
+    Added required headers
+    Enabled credentials
+    Allowed localhost origins
+
+  Fixed security issues:
+    Added token-based auth
+    Required credentials in fetch requests
+    Denied all admin API calls unless logged in
+    
+  Verified admin APIs in Postman (with testing token).
+
+🔧 Current Status
+
+Feature	% Status
+
+Admin Login + Lockdown	✅ Complete & Secure
+Admin Layout (Sidebar + Topbar)	✅ Done
+DesignsPage UI	✅ Polished & Fully Functional
+Sorting / Filtering / Pagination	✅ Live
+Status updates	✅ Fully working
+Notes system	✅ Working with real-time updates
+Archive system	✅ Working with DB logging
+Artwork Modal	✅ Working
+Job Details Panel	✅ Working
+Event Logging + Timeline	✅ Completed
+API Auth System	✅ Working with tokens
+CORS & Credentials	✅ Fixed
+DB Structure	✅ Finalized & stable

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import type { Design, DesignStatus } from '../../types';
-import { fetchDesigns } from '../api/designs';
-import StatusPill from '../components/StatusPill';
+import type { Design, DesignStatus } from '../../../types';
+import { fetchDesigns, updateDesignStatus } from '../../api/designs';
+import StatusDropdown from '../StatusDropdown';
+import ArtworkModal from '../ArtworkModal';
 
 const DesignsPage: React.FC = () => {
   const [designs, setDesigns] = useState<Design[]>([]);
@@ -16,7 +17,13 @@ const DesignsPage: React.FC = () => {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
 
+  // Artwork modal state
+  const [selectedDesign, setSelectedDesign] = useState<Design | null>(null);
+  const [isArtworkOpen, setIsArtworkOpen] = useState(false);
+
+  // Load designs whenever filters or pagination change
   useEffect(() => {
     let cancelled = false;
 
@@ -40,9 +47,10 @@ const DesignsPage: React.FC = () => {
         setHasNextPage(res.pageInfo.hasNextPage);
         setHasPreviousPage(res.pageInfo.hasPreviousPage);
       } catch (err: any) {
-        if (cancelled) return;
-        console.error(err);
-        setError(err.message ?? 'Failed to load designs');
+        if (!cancelled) {
+          console.error(err);
+          setError(err.message ?? 'Failed to load designs');
+        }
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -51,15 +59,51 @@ const DesignsPage: React.FC = () => {
     }
 
     loadDesigns();
-
     return () => {
       cancelled = true;
     };
   }, [statusFilter, search, page, perPage]);
 
+  // Status filter button handler
   const handleStatusClick = (status: DesignStatus | 'all') => {
     setStatusFilter(status);
     setPage(1);
+  };
+
+  // Status dropdown handler (optimistic update)
+  const handleStatusChange = async (id: number, nextStatus: DesignStatus) => {
+    const current = designs.find((d) => d.id === id);
+    if (!current || current.status === nextStatus) return;
+
+    const previousStatus = current.status;
+
+    setUpdatingId(id);
+    setDesigns((items) =>
+      items.map((d) => (d.id === id ? { ...d, status: nextStatus } : d))
+    );
+
+    try {
+      await updateDesignStatus(id, nextStatus);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update status. Reverting…');
+      setDesigns((items) =>
+        items.map((d) => (d.id === id ? { ...d, status: previousStatus } : d))
+      );
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  // Artwork modal handlers
+  const openArtwork = (design: Design) => {
+    setSelectedDesign(design);
+    setIsArtworkOpen(true);
+  };
+
+  const closeArtwork = () => {
+    setIsArtworkOpen(false);
+    setSelectedDesign(null);
   };
 
   return (
@@ -74,7 +118,6 @@ const DesignsPage: React.FC = () => {
 
       {/* Filters */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        {/* Status buttons */}
         <div className="flex gap-2 flex-wrap">
           {(['all', 'pending', 'printing', 'completed'] as const).map((status) => (
             <button
@@ -94,7 +137,6 @@ const DesignsPage: React.FC = () => {
           ))}
         </div>
 
-        {/* Search */}
         <div>
           <input
             type="search"
@@ -127,19 +169,14 @@ const DesignsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* MAIN TABLE */}
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-        {/* Loading / error / empty states */}
+      {/* Table card */}
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm w-full">
         {loading && (
-          <div className="p-4 text-sm text-slate-600">
-            Loading jobs…
-          </div>
+          <div className="p-4 text-sm text-slate-600">Loading jobs…</div>
         )}
 
         {!loading && error && (
-          <div className="p-4 text-sm text-red-700">
-            {error}
-          </div>
+          <div className="p-4 text-sm text-red-700">{error}</div>
         )}
 
         {!loading && !error && designs.length === 0 && (
@@ -149,26 +186,26 @@ const DesignsPage: React.FC = () => {
         )}
 
         {!loading && !error && designs.length > 0 && (
-          <>
-            <table className="min-w-full text-sm">
+          <div className="w-full overflow-x-auto">
+            <table className="w-full table-fixed text-sm">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th className="text-left px-4 py-2 font-semibold text-slate-700">
+                  <th className="text-left px-4 py-2 font-semibold text-slate-700 w-40">
                     Created
                   </th>
                   <th className="text-left px-4 py-2 font-semibold text-slate-700">
                     Product / Variant
                   </th>
-                  <th className="text-left px-4 py-2 font-semibold text-slate-700">
+                  <th className="text-left px-4 py-2 font-semibold text-slate-700 w-14">
                     Qty
                   </th>
-                  <th className="text-left px-4 py-2 font-semibold text-slate-700">
+                  <th className="text-left px-4 py-2 font-semibold text-slate-700 w-32">
                     Status
                   </th>
-                  <th className="text-left px-4 py-2 font-semibold text-slate-700">
+                  <th className="text-left px-4 py-2 font-semibold text-slate-700 w-32">
                     Artwork
                   </th>
-                  <th className="text-right px-4 py-2 font-semibold text-slate-700">
+                  <th className="text-right px-4 py-2 font-semibold text-slate-700 w-40">
                     Checkout
                   </th>
                 </tr>
@@ -179,7 +216,7 @@ const DesignsPage: React.FC = () => {
                     key={d.id}
                     className="border-b last:border-b-0 border-slate-100 hover:bg-slate-50/60"
                   >
-                    <td className="px-4 py-2 align-top text-slate-600 text-xs">
+                    <td className="px-4 py-2 align-top text-slate-600 text-xs break-words">
                       {d.createdAt
                         ? new Date(d.createdAt).toLocaleString()
                         : '—'}
@@ -202,19 +239,22 @@ const DesignsPage: React.FC = () => {
                     </td>
 
                     <td className="px-4 py-2 align-top">
-                      <StatusPill status={d.status} />
+                      <StatusDropdown
+                        value={d.status}
+                        disabled={updatingId === d.id}
+                        onChange={(next) => handleStatusChange(d.id, next)}
+                      />
                     </td>
 
                     <td className="px-4 py-2 align-top">
                       {d.artworkUrl ? (
-                        <a
-                          href={d.artworkUrl}
-                          target="_blank"
-                          rel="noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => openArtwork(d)}
                           className="inline-flex items-center px-2 py-1 text-[11px] border border-slate-200 rounded-md hover:bg-slate-50"
                         >
                           View artwork
-                        </a>
+                        </button>
                       ) : (
                         <span className="text-[11px] text-slate-400">
                           No file
@@ -233,22 +273,18 @@ const DesignsPage: React.FC = () => {
                           Open checkout
                         </a>
                       ) : (
-                        <span className="text-[11px] text-slate-400">
-                          —
-                        </span>
+                        <span className="text-[11px] text-slate-400">—</span>
                       )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-
-            {/* Pagination footer */}
-          </>
+          </div>
         )}
       </div>
 
-      {/* Pagination footer (separate from table for clarity) */}
+      {/* Pagination footer */}
       {!loading && !error && (
         <div className="flex items-center justify-between text-xs text-slate-600">
           <div>Page {page}</div>
@@ -272,6 +308,13 @@ const DesignsPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Artwork Modal */}
+      <ArtworkModal
+        isOpen={isArtworkOpen}
+        design={selectedDesign}
+        onClose={closeArtwork}
+      />
     </div>
   );
 };

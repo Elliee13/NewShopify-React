@@ -28,18 +28,45 @@ export type DesignStatus = 'pending' | 'printing' | 'completed';
 
 export interface Design {
   id: number;
+
+  // Canonical camelCase fields used in React
   productId: string;
   variantId: string;
-  color: string;
-  size: string;
-  quantity: number;            // ensure your backend sends this field
-  artworkFile: string;
-  artworkUrl: string;
+  color: string | null;
+  size: string | null;
+  quantity: number;
+
+  artworkFile: string | null;
+  artworkUrl: string | null;
+
   cartId: string | null;
   checkoutUrl: string | null;
+
   status: DesignStatus;
-  createdAt: string;           // ISO datetime
-  updatedAt: string | null;
+
+  createdAt: string | null;
+  updatedAt?: string | null;
+
+  archived?: boolean | number;
+
+  notes?: string | null;
+
+  // Raw snake_case fields from backend (optional, used during normalization)
+  product_id?: string;
+  variant_id?: string;
+  artwork_file?: string;
+  artwork_url?: string;
+  cart_id?: string;
+  checkout_url?: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface DesignsSummary {
+  pending: number;
+  printing: number;
+  completed: number;
+  total: number;
 }
 
 export interface DesignsPageInfo {
@@ -53,4 +80,13 @@ export interface DesignsPageInfo {
 export interface DesignsResponse {
   data: Design[];
   pageInfo: DesignsPageInfo;
+}
+
+export interface DesignEvent {
+  id: number;
+  designId: number;
+  action: 'status_change' | 'note_update' | 'archive' | string;
+  fromValue: string | null;
+  toValue: string | null;
+  createdAt: string; // ISO or timestamp string from backend
 }
